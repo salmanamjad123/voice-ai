@@ -1,6 +1,3 @@
-import dotenv from 'dotenv';
-dotenv.config();
-
 import express, { type Express, type Response } from "express";
 import { type Request as ExpressRequest } from "express-serve-static-core";
 import { createServer, type Server } from "http";
@@ -265,14 +262,14 @@ function extractWebsiteMetadata(document: Document): WebsiteCrawlMetadata {
     );
 
   // Extract services and features with enhanced structure
-  // const serviceSelectors = [
-  //   'section[class*="service"], section[class*="feature"]',
-  //   'div[class*="service"], div[class*="feature"]',
-  //   ".card, .feature-card, .service-card",
-  //   '[class*="service-item"], [class*="feature-item"]',
-  //   '[data-testid*="service"], [data-testid*="feature"]',
-  //   ".solutions, .products, .offerings",
-  // ];
+  const serviceSelectors = [
+    'section[class*="service"], section[class*="feature"]',
+    'div[class*="service"], div[class*="feature"]',
+    ".card, .feature-card, .service-card",
+    '[class*="service-item"], [class*="feature-item"]',
+    '[data-testid*="service"], [data-testid*="feature"]',
+    ".solutions, .products, .offerings",
+  ];
 
   const serviceElements = document.querySelectorAll(serviceSelectors.join(","));
   const services = new Map<
@@ -608,9 +605,7 @@ app.post("/api/chat", async (req: Request, res: Response) => {
     const context = await createConversationContext(documents, agent);
     
     // Create the chat completion with strict context
-    const openai = new OpenAI({ apiKey:
-      //  process.env.OPENAI_API_KEY 
-      });
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const completion = await openai.chat.completions.create({
       model: "gpt-4o", // the newest OpenAI model is "gpt-4o" which was released May 13, 2024
       messages: [
@@ -633,8 +628,8 @@ app.post("/api/chat", async (req: Request, res: Response) => {
     const response = completion.choices[0].message.content;
 
     // Validate response contains appropriate prefixes
-    if (!response?.includes("Based on the document") && 
-        !response?.includes("I cannot answer this question")) {
+    if (!response.includes("Based on the document") && 
+        !response.includes("I cannot answer this question")) {
       // If response doesn't follow format, return cannot-answer message
       return res.json({
         response: `I cannot answer this question as it's not covered in the assigned documents. I can only provide information that is explicitly present in ${context.documentNames.join(", ")}. Please ask about the content from these documents.`
@@ -1543,7 +1538,7 @@ Follow these rules strictly:
           const mimetype = "audio/webm;codecs=opus";
 
           // Send audio chunk to Deepgram for real-time transcription
-          // const deepgramUrl = `https://api.deepgram.com/v1/listen?encoding=${encoding}&language=en-US&punctuate=true&interim_results=true`;
+          const deepgramUrl = `https://api.deepgram.com/v1/listen?encoding=${encoding}&language=en-US&punctuate=true&interim_results=true`;
           const response = await fetch(deepgramUrl, {
             method: "POST",
             headers: {

@@ -19,7 +19,8 @@ const testing = () => {
   const sendAudioToOpenAI = async (audioFile: File) => {
     console.log("inside sendAudioToOpenAI");
 
-    
+    const apiKey =process.env.OPENAI_API_KEY;
+    const openaiUrl = "https://api.openai.com/v1/audio/transcriptions";
 
     const formData = new FormData();
     formData.append("file", audioFile); // Append the audio file

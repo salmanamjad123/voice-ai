@@ -74,10 +74,15 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
-  server.listen(PORT, "0.0.0.0", () => {
+  // server.listen(PORT, "0.0.0.0", () => {
+  //   log(`Server running at http://0.0.0.0:${PORT}`);
+  //   console.log(process.env.OPENAI_API_SECRET, "url key openai");
+  // });
+
+  server.listen(Number(PORT), "0.0.0.0", () => {
     log(`Server running at http://0.0.0.0:${PORT}`);
     console.log(process.env.OPENAI_API_SECRET, "url key openai");
   });
-
+  
   return server;
 })();
