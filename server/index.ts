@@ -1,11 +1,8 @@
 import express, { Request, Response, NextFunction } from "express";
 import { createServer } from "http";
 import path from "path";
-import dotenv from "dotenv";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-
-dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
