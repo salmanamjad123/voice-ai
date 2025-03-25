@@ -1,0 +1,143 @@
+import React, { useState, useRef } from "react";
+import axios from "axios";
+
+// Define global SpeechRecognition types
+declare global {
+  interface Window {
+    SpeechRecognition: any;
+    webkitSpeechRecognition: any;
+  }
+}
+
+const languages = [
+  { code: "en-US", label: "English" },
+  { code: "hi-IN", label: "Hindi" },
+  { code: "es-ES", label: "Spanish" },
+  { code: "fr-FR", label: "French" },
+  { code: "de-DE", label: "German" },
+];
+
+const RealtimeVoice: React.FC = () => {
+  const [message, setMessage] = useState<string>("");
+  const [response, setResponse] = useState<string>("");
+  const [isListening, setIsListening] = useState<boolean>(false);
+  const [language, setLanguage] = useState<string>("en-US");
+
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
+
+  const startCall = () => {
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      console.error("Speech Recognition is not supported in this browser.");
+      return;
+    }
+
+    if (isListening) return;
+
+    setIsListening(true);
+    setResponse("");
+
+    recognitionRef.current = new SpeechRecognition();
+    recognitionRef.current.lang = language;
+    recognitionRef.current.continuous = true;
+    recognitionRef.current.interimResults = false;
+
+    console.log("Call started... Listening...");
+
+    recognitionRef.current.start();
+
+    recognitionRef.current.onresult = async (event: SpeechRecognitionEvent) => {
+      const transcript = event.results[event.results.length - 1][0].transcript;
+      console.log("Recognized Text:", transcript);
+      setMessage(transcript);
+
+      try {
+        const res = await axios.post("/api/process", {
+          text: transcript,
+          lang: language,
+        });
+
+        const botReply = res.data.reply;
+        setResponse(botReply);
+        console.log("AI Response:", botReply);
+
+        speakResponse(botReply);
+      } catch (error) {
+        console.error("Error fetching AI response:", error);
+      }
+    };
+
+    recognitionRef.current.onerror = (event: any) =>
+      console.error("Speech recognition error:", event.error);
+  };
+
+  const speakResponse = (text: string) => {
+    if (window.speechSynthesis.speaking) {
+      window.speechSynthesis.cancel();
+    }
+
+    const speech = new SpeechSynthesisUtterance(text);
+    speech.lang = language;
+
+    speech.onend = () => {
+      console.log("Finished speaking. Ready to listen again...");
+      if (isListening && recognitionRef.current) {
+        recognitionRef.current.start(); // Restart listening after speaking
+      }
+    };
+
+    speech.onerror = (event: any) =>
+      console.error("Speech synthesis error:", event.error);
+
+    window.speechSynthesis.speak(speech);
+  };
+
+  const stopCall = () => {
+    if (!isListening) return;
+
+    setIsListening(false);
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      console.log("Call ended. Stopped listening.");
+    }
+
+    window.speechSynthesis.cancel();
+  };
+
+  return (
+    <div style={{ textAlign: "center", marginTop: "50px" }}>
+      <h2>Real Voice Agent (Fast & Smooth)</h2>
+
+      <label>
+        🌐 Select Language:{" "}
+        <select value={language} onChange={(e) => setLanguage(e.target.value)}>
+          {languages.map((lang) => (
+            <option key={lang.code} value={lang.code}>
+              {lang.label}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <br />
+      <br />
+
+      {!isListening ? (
+        <button onClick={startCall}>📞 Start Call</button>
+      ) : (
+        <button onClick={stopCall}>🔴 End Call</button>
+      )}
+
+      <p>
+        <strong>You:</strong> {message}
+      </p>
+      <p>
+        <strong>Bot:</strong> {response}
+      </p>
+    </div>
+  );
+};
+
+export default RealtimeVoice;
