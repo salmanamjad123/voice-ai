@@ -2,15 +2,20 @@
     "version": 2,
     "builds": [
       {
-        "src": "server",
+        "src": "api/index.ts",
         "use": "@vercel/node"
+      },
+      {
+        "src": "client/vite.config.ts",
+        "use": "@vercel/static-build",
+        "config": {
+          "distDir": "client/dist"
+        }
       }
     ],
     "routes": [
-      {
-        "src": "/(.*)",
-        "dest": "server"
-      }
+      { "src": "/api/(.*)", "dest": "/api/index.ts" },
+      { "src": "/(.*)", "dest": "/client/dist/$1" }
     ]
   }
   
