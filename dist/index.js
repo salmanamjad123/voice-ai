@@ -6,7 +6,7 @@ var __export = (target, all) => {
 
 // server/index.ts
 import express3 from "express";
-import path3 from "path";
+import { createServer as createServer2 } from "http";
 
 // server/routes.ts
 import express from "express";
@@ -3041,34 +3041,99 @@ ${firecrawlData.content || ""}`;
 // server/vite.ts
 import express2 from "express";
 import fs from "fs";
-import path2, { dirname } from "path";
-import { fileURLToPath } from "url";
+import path2, { dirname as dirname2 } from "path";
+import { fileURLToPath as fileURLToPath2 } from "url";
 import { createServer as createViteServer, createLogger } from "vite";
 
 // vite.config.ts
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import path from "path";
+import themePlugin from "@replit/vite-plugin-shadcn-theme-json";
+import path, { dirname } from "path";
+import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
+import { fileURLToPath } from "url";
+var __filename = fileURLToPath(import.meta.url);
+var __dirname = dirname(__filename);
 var vite_config_default = defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    runtimeErrorOverlay(),
+    themePlugin(),
+    ...process.env.NODE_ENV !== "production" && process.env.REPL_ID !== void 0 ? [
+      await import("@replit/vite-plugin-cartographer").then(
+        (m) => m.cartographer()
+      )
+    ] : []
+  ],
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "client/src"),
+      "@": path.resolve(__dirname, "client", "src"),
       "@shared": path.resolve(__dirname, "shared")
     }
   },
-  root: "client",
+  root: path.resolve(__dirname, "client"),
   build: {
-    outDir: "../dist/client",
+    outDir: path.resolve(__dirname, "dist/public"),
     emptyOutDir: true
   }
 });
 
 // server/vite.ts
 import { nanoid } from "nanoid";
-var __filename = fileURLToPath(import.meta.url);
-var __dirname2 = dirname(__filename);
+var __filename2 = fileURLToPath2(import.meta.url);
+var __dirname2 = dirname2(__filename2);
 var viteLogger = createLogger();
+function log(message, source = "express") {
+  const formattedTime = (/* @__PURE__ */ new Date()).toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true
+  });
+  console.log(`${formattedTime} [${source}] ${message}`);
+}
+async function setupVite(app3, server2) {
+  const serverOptions = {
+    middlewareMode: true,
+    hmr: { server: server2 },
+    allowedHosts: true
+  };
+  const vite = await createViteServer({
+    ...vite_config_default,
+    configFile: false,
+    customLogger: {
+      ...viteLogger,
+      error: (msg, options) => {
+        viteLogger.error(msg, options);
+        process.exit(1);
+      }
+    },
+    server: serverOptions,
+    appType: "custom"
+  });
+  app3.use(vite.middlewares);
+  app3.use("*", async (req, res, next) => {
+    const url = req.originalUrl;
+    try {
+      const clientTemplate = path2.resolve(
+        __dirname2,
+        "..",
+        "client",
+        "index.html"
+      );
+      let template = await fs.promises.readFile(clientTemplate, "utf-8");
+      template = template.replace(
+        `src="/src/main.tsx"`,
+        `src="/src/main.tsx?v=${nanoid()}"`
+      );
+      const page = await vite.transformIndexHtml(url, template);
+      res.status(200).set({ "Content-Type": "text/html" }).end(page);
+    } catch (e) {
+      vite.ssrFixStacktrace(e);
+      next(e);
+    }
+  });
+}
 function serveStatic(app3) {
   const distPath = path2.resolve(__dirname2, "public");
   if (!fs.existsSync(distPath)) {
@@ -3083,8 +3148,9 @@ function serveStatic(app3) {
 }
 
 // server/index.ts
-import serverless from "serverless-http";
 var app2 = express3();
+var PORT = process.env.PORT || 5e3;
+var server = createServer2(app2);
 app2.use(express3.json({ limit: "50mb" }));
 app2.use(express3.urlencoded({ extended: false, limit: "50mb" }));
 app2.use((req, res, next) => {
@@ -3093,21 +3159,51 @@ app2.use((req, res, next) => {
   res.header("Access-Control-Allow-Headers", "Content-Type");
   next();
 });
-registerRoutes(app2);
-if (process.env.NODE_ENV !== "development") {
-  app2.use(express3.static(path3.join(__dirname, "../client/dist")));
-  app2.get("*", (req, res) => {
-    res.sendFile(path3.join(__dirname, "../client/dist", "index.html"));
+app2.use((req, res, next) => {
+  const start = Date.now();
+  const path3 = req.path;
+  let capturedJsonResponse = void 0;
+  const originalResJson = res.json;
+  res.json = function(bodyJson, ...args) {
+    capturedJsonResponse = bodyJson;
+    return originalResJson.apply(res, [bodyJson, ...args]);
+  };
+  res.on("finish", () => {
+    const duration = Date.now() - start;
+    if (path3.startsWith("/api")) {
+      let logLine = `${req.method} ${path3} ${res.statusCode} in ${duration}ms`;
+      if (capturedJsonResponse) {
+        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+      }
+      if (logLine.length > 80) {
+        logLine = logLine.slice(0, 79) + "\u2026";
+      }
+      log(logLine);
+    }
   });
-} else {
-  serveStatic(app2);
-}
-app2.use((err, _req, res, _next) => {
-  const status = err.status || 500;
-  const message = err.message || "Internal Server Error";
-  res.status(status).json({ message });
+  next();
 });
-var handler = serverless(app2);
-export {
-  handler
-};
+(async () => {
+  const server2 = await registerRoutes(app2);
+  app2.use((err, _req, res, _next) => {
+    const status = err.status || err.statusCode || 500;
+    const message = err.message || "Internal Server Error";
+    res.status(status).json({ message });
+    throw err;
+  });
+  if (app2.get("env") === "development") {
+    await setupVite(app2, server2);
+  } else {
+    serveStatic(app2);
+  }
+  if (process.env.NODE_ENV === "development") {
+    await setupVite(app2, server2);
+  } else {
+    serveStatic(app2);
+  }
+  server2.listen(PORT, "0.0.0.0", () => {
+    log(`Server running at http://0.0.0.0:${PORT}`);
+    console.log(process.env.OPENAI_API_SECRET, "url key openai");
+  });
+  return server2;
+})();
